@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+venv-build/
+*.pyo
+
+# Build
+dist/
+build/
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Application
+*.AppImage
+transfert-app
+transfert.exe
