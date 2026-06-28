@@ -1,0 +1,104 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  # Forcer Node.js 24 pour supprimer le warning de dépréciation
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Désactiver le warning Homebrew sur macOS
+  HOMEBREW_NO_REQUIRE_TAP_TRUST: 1
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15]  # macos-15 au lieu de macos-latest
+        include:
+          - os: ubuntu-latest
+            output_name: transfert
+            artifact_name: Transfert-linux
+          - os: windows-latest
+            output_name: transfert.exe
+            artifact_name: Transfert-windows
+          - os: macos-15
+            output_name: transfert
+            artifact_name: Transfert-macos
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk xvfb
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install python-tk
+
+      - name: Install Python packages
+        run: |
+          pip install pyinstaller
+
+      - name: Build on Linux
+        if: runner.os == 'Linux'
+        run: |
+          pyinstaller --onefile --windowed --name transfert src/transfert.py
+
+      - name: Build on Windows
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --onefile --windowed --name transfert.exe src/transfert.py
+
+      - name: Build on macOS
+        if: runner.os == 'macOS'
+        run: |
+          pyinstaller --onefile --windowed --name transfert src/transfert.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.output_name }}
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: |
+          ls -la artifacts/
+          find artifacts -type f
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
